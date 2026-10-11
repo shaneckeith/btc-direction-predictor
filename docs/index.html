@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitcoin Daily Direction Predictor</title>
+<style>
+:root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e; }
+}
+body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg);
+       max-width:720px; margin:0 auto; padding:24px 16px; line-height:1.5; }
+h1 { font-size:1.5rem; margin-bottom:4px; }
+.sub { color:var(--muted); margin-top:0; }
+.cards { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:20px 0; }
+@media (max-width:560px) { .cards { grid-template-columns:1fr; } }
+.card { background:var(--card); border-radius:12px; padding:16px; }
+.label { color:var(--muted); font-size:.85rem; }
+.big { font-size:2.2rem; font-weight:700; }
+.up { color:var(--up); } .down { color:var(--down); }
+table { width:100%; border-collapse:collapse; margin-top:8px; }
+th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--card); font-size:.95rem; }
+.note { color:var(--muted); font-size:.85rem; }
+</style>
+</head><body>
+<h1>Bitcoin Daily Direction Predictor</h1>
+<p class="sub">Will tomorrow's close be higher or lower than today's? Data through the 2026-10-10 close (UTC).</p>
+<div class="cards"><div class="card">
+  <div class="label">Prediction for 2026-10-11 (UTC)</div>
+  <div class="big down">DOWN</div>
+  <div class="label">Model's chance of up: 50%. Reference: the 2026-10-10 00:00:00 close of $82,911.</div>
+</div><div class="card">
+  <div class="label">Latest result</div>
+  <div class="big">Pending</div>
+  <div class="label">The first live prediction is graded once its day closes at midnight UTC.</div>
+</div></div>
+<p><b>Live record:</b> no graded predictions yet.</p>
+<p><b>Backtest</b> (2022-10-19 to 2026-10-09, 1,452 days, retraining every day): model 50.3%, always guessing up 50.0%. That gap is well within chance, so expect today's call to be no better than a coin flip.</p>
+<h2>Recent predictions</h2>
+<table>
+<tr><th>Day</th><th>Predicted</th><th>Chance of up</th><th>Actual</th><th>Result</th></tr>
+<tr><td>2026-10-11</td><td>DOWN</td><td>50%</td><td>pending</td><td>&hellip;</td></tr>
+</table>
+<p class="note">"Up" means that day's UTC close was higher than the previous day's. Each prediction is logged
+before its day finishes and is never edited. Only finished days are used. Built for learning, not financial advice.</p>
+<p class="note">Updated 2026-10-11 21:07 UTC.</p>
+</body></html>

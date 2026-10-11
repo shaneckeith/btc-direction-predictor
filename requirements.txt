@@ -1,0 +1,12 @@
+# Crypto Market Intelligence Pipeline - Requirements
+
+# Core dependencies
+duckdb>=0.9.0
+pandas>=2.0.0
+requests>=2.31.0
+
+# Optional dependencies for enhanced features
+markdown>=3.4.0  # For HTML report generation
+
+# Development dependencies (optional)
+pytest>=7.3.0    # For unit testing
