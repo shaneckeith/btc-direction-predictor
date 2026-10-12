@@ -10,3 +10,4 @@ markdown>=3.4.0  # For HTML report generation
 
 # Development dependencies (optional)
 pytest>=7.3.0    # For unit testing
+scikit-learn>=1.3
