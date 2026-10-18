@@ -65,7 +65,7 @@ else:
 
 # 4) Read the log back, grading each prediction against what actually happened
 log = con.execute("""
-    SELECT p.as_of_date, p.pred, p.prob_up, d0.close AS close_d0, d1.close AS close_d1
+    SELECT p.as_of_date, p.made_at, p.pred, p.prob_up, d0.close AS close_d0, d1.close AS close_d1
     FROM predictions p
     JOIN btc_daily d0 ON d0.date = p.as_of_date
     LEFT JOIN btc_daily d1 ON d1.date = CAST(p.as_of_date + INTERVAL 1 DAY AS DATE)
@@ -96,11 +96,15 @@ bt_df = None
 csv_path = Path("walkforward_results.csv")
 if csv_path.exists():
     bt_df = pd.read_csv(csv_path)
+    brier_txt = ""
+    if "prob_up" in bt_df.columns:
+        brier = ((bt_df["prob_up"] - bt_df["actual"]) ** 2).mean()
+        brier_txt = f" Brier score {brier:.3f} (lower is better; always saying 50% scores 0.250)."
     backtest = (
         f"<p><b>Backtest</b> ({str(bt_df['date'].min())[:10]} to {str(bt_df['date'].max())[:10]}, "
         f"{len(bt_df):,} days, retraining every day): model {(bt_df['pred'] == bt_df['actual']).mean() * 100:.1f}%, "
         f"always guessing up {(bt_df['actual'] == 1).mean() * 100:.1f}%. That gap is well within chance, "
-        f"so expect today's call to be no better than a coin flip.</p>"
+        f"so expect today's call to be no better than a coin flip.{brier_txt}</p>"
     )
 
 # Cards: newest prediction and latest graded result
@@ -138,8 +142,10 @@ for _, r in log.tail(14).iloc[::-1].iterrows():
     else:
         actual_txt = word(r["actual"])
         result = "&#10003;" if int(r["pred"]) == int(r["actual"]) else "&#10007;"
+    logged = pd.Timestamp(r["made_at"]).strftime("%Y-%m-%d %H:%M")
     rows += (f"<tr><td>{target_day(r['as_of_date'])}</td><td>{word(r['pred'])}</td>"
-             f"<td>{r['prob_up'] * 100:.1f}%</td><td>{actual_txt}</td><td>{result}</td></tr>")
+             f"<td>{r['prob_up'] * 100:.1f}%</td><td>{actual_txt}</td><td>{result}</td>"
+             f"<td>{logged}</td></tr>")
 
 
 # Chart: running total of the model's lead over "always guess up"
@@ -197,14 +203,25 @@ def advantage_chart(bt_points, live_points):
     if bt_points:
         parts.append(f'<polyline class="bt" points="{poly(bt_points)}"/>')
     if live_points:
-        start = [bt_points[-1]] if bt_points else []
-        parts.append(f'<polyline class="lv" points="{poly(start + live_points)}"/>')
+        # The live line starts at its own first point and is not joined to the backtest line
+        parts.append(f'<polyline class="lv" points="{poly(live_points)}"/>')
+        last = live_points[-1]
+        parts.append(f'<circle class="lvdot" cx="{sx(last[0].toordinal()):.1f}" '
+                     f'cy="{sy(float(last[1])):.1f}" r="4.5"/>')
         lx = sx(live_points[0][0].toordinal())
         parts.append(f'<line class="axis" x1="{lx:.1f}" y1="{T}" x2="{lx:.1f}" y2="{H - B}" stroke-dasharray="2 3"/>')
-        parts.append(f'<text class="tick" x="{lx - 4:.1f}" y="{T + 10}" text-anchor="end">live &rarr;</text>')
+        parts.append(f'<text class="livelabel" x="{lx - 4:.1f}" y="{T + 10}" text-anchor="end">live &rarr;</text>')
     parts.append("</svg>")
     return "".join(parts)
 
+
+gap_note = ""
+if bt_pts and live_pts:
+    missing = (live_pts[0][0] - bt_pts[-1][0]).days - 1
+    if missing > 0:
+        first_missing = (bt_pts[-1][0] + pd.Timedelta(days=1)).date()
+        gap_note = (f" No predictions were logged for {missing} day{'s' if missing != 1 else ''} "
+                    f"between them (starting {first_missing}), so the two lines are not joined.")
 
 chart_html = ""
 chart_svg = advantage_chart(bt_pts, live_pts)
@@ -213,7 +230,8 @@ if chart_svg:
 {chart_svg}
 <p class="note">Running total of the model's lead over always guessing up. Each graded day moves the line
 up one step when the model was right and always-up was wrong, down one step when it was the other way around,
-and not at all when they agreed. Above the dashed zero line, the model is ahead. Gray is the backtest, blue is live.</p>"""
+and not at all when they agreed. Above the dashed zero line, the model is ahead. Blue is the backtest and
+orange is the live record.{gap_note}</p>"""
 
 how_html = f"""<h2>How it works</h2>
 <p>Each night a logistic regression model is retrained from scratch on every finished day of Bitcoin history
@@ -223,9 +241,11 @@ It predicts whether the next day's close will be higher than today's. The backte
 only the days before it. <a href="{REPO_URL}">Code and full write-up on GitHub.</a></p>"""
 
 CSS = """
-:root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b; --accent:#2563eb; }
+:root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b;
+        --bt:#2563eb; --live:#d97706; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e; --accent:#6ea8ff; }
+  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e;
+          --bt:#6ea8ff; --live:#fbbf24; }
 }
 body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg);
        max-width:720px; margin:0 auto; padding:24px 16px; line-height:1.5; }
@@ -237,15 +257,18 @@ h1 { font-size:1.5rem; margin-bottom:4px; }
 .label { color:var(--muted); font-size:.85rem; }
 .big { font-size:2.2rem; font-weight:700; }
 .up { color:var(--up); } .down { color:var(--down); }
+.tablewrap { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; margin-top:8px; }
-th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--card); font-size:.95rem; }
+th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--card); font-size:.95rem; white-space:nowrap; }
 .note { color:var(--muted); font-size:.85rem; }
 .chart { width:100%; height:auto; display:block; margin-top:8px; }
 .axis { stroke:var(--muted); stroke-width:1; opacity:.5; }
 .zero { stroke:var(--muted); stroke-width:1; stroke-dasharray:4 3; }
-.bt { fill:none; stroke:var(--muted); stroke-width:1.5; }
-.lv { fill:none; stroke:var(--accent); stroke-width:2; }
+.bt { fill:none; stroke:var(--bt); stroke-width:1.75; }
+.lv { fill:none; stroke:var(--live); stroke-width:2.5; }
+.lvdot { fill:var(--live); stroke:var(--bg); stroke-width:1.5; }
 .tick { fill:var(--muted); font-size:11px; }
+.livelabel { fill:var(--live); font-size:11px; font-weight:600; }
 """
 
 html = f"""<!doctype html>
@@ -263,13 +286,17 @@ html = f"""<!doctype html>
 {backtest}
 {chart_html}
 <h2>Recent predictions</h2>
+<div class="tablewrap">
 <table>
-<tr><th>Day</th><th>Predicted</th><th>Chance of up</th><th>Actual</th><th>Result</th></tr>
+<tr><th>Day</th><th>Predicted</th><th>Chance of up</th><th>Actual</th><th>Result</th><th>Logged (UTC)</th></tr>
 {rows}
 </table>
+</div>
 {how_html}
 <p class="note">"Up" means that day's UTC close was higher than the previous day's. Each prediction is logged
-before its day finishes and is never edited. Only finished days are used. Built for learning, not financial advice.</p>
+before its day finishes, and the code never overwrites a logged prediction. Every nightly update is also a public
+commit in the GitHub repository, so the logging times can be checked against its history. Only finished days are
+used. Built for learning, not financial advice.</p>
 <p class="note">Updated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC.</p>
 </body></html>"""
 
