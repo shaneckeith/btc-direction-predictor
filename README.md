@@ -1,5 +1,5 @@
 # Bitcoin Flip
-*Bitcoin Daily Direction Predictor
+*Bitcoin Daily Direction Predictor*
 
 A small machine learning project that predicts, every day, whether Bitcoin's next daily close will be higher or lower than today's, logs the prediction before the day finishes, and grades itself in public.
 
