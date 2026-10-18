@@ -11,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 
 DB_PATH = "data/crypto.duckdb"
 OUT_PATH = Path("docs/index.html")
+REPO_URL = "https://github.com/shaneckeith/btc-direction-predictor"
 
 # 1) Bring the price table up to date (fetches only missing finished days)
 subprocess.run([sys.executable, "update_btc.py"], check=True)
@@ -91,13 +92,14 @@ def target_day(as_of_date):
 
 # Backtest summary from the walk-forward run (history, not live)
 backtest = ""
+bt_df = None
 csv_path = Path("walkforward_results.csv")
 if csv_path.exists():
-    r = pd.read_csv(csv_path)
+    bt_df = pd.read_csv(csv_path)
     backtest = (
-        f"<p><b>Backtest</b> ({str(r['date'].min())[:10]} to {str(r['date'].max())[:10]}, "
-        f"{len(r):,} days, retraining every day): model {(r['pred'] == r['actual']).mean() * 100:.1f}%, "
-        f"always guessing up {(r['actual'] == 1).mean() * 100:.1f}%. That gap is well within chance, "
+        f"<p><b>Backtest</b> ({str(bt_df['date'].min())[:10]} to {str(bt_df['date'].max())[:10]}, "
+        f"{len(bt_df):,} days, retraining every day): model {(bt_df['pred'] == bt_df['actual']).mean() * 100:.1f}%, "
+        f"always guessing up {(bt_df['actual'] == 1).mean() * 100:.1f}%. That gap is well within chance, "
         f"so expect today's call to be no better than a coin flip.</p>"
     )
 
@@ -139,10 +141,91 @@ for _, r in log.tail(14).iloc[::-1].iterrows():
     rows += (f"<tr><td>{target_day(r['as_of_date'])}</td><td>{word(r['pred'])}</td>"
              f"<td>{r['prob_up'] * 100:.1f}%</td><td>{actual_txt}</td><td>{result}</td></tr>")
 
+
+# Chart: running total of the model's lead over "always guess up"
+def lead_steps(pred_col, actual_col):
+    # +1 when the model was right and always-up was wrong, -1 the reverse, 0 when they agree
+    return (pred_col == actual_col).astype(int) - (actual_col == 1).astype(int)
+
+
+bt_pts, live_pts, base = [], [], 0
+if bt_df is not None and len(bt_df):
+    steps = lead_steps(bt_df["pred"].astype(int), bt_df["actual"].astype(int)).cumsum()
+    days = pd.to_datetime(bt_df["date"]) + pd.Timedelta(days=1)
+    bt_pts = list(zip(days, steps))
+    base = int(steps.iloc[-1])
+if len(graded):
+    steps = lead_steps(graded["pred"].astype(int), graded["actual"].astype(int)).cumsum() + base
+    days = pd.to_datetime(graded["as_of_date"]) + pd.Timedelta(days=1)
+    live_pts = list(zip(days, steps))
+
+
+def advantage_chart(bt_points, live_points):
+    pts = bt_points + live_points
+    if not pts:
+        return ""
+    xs = [p[0].toordinal() for p in pts]
+    ys = [float(p[1]) for p in pts] + [0.0]
+    x0, x1 = min(xs), max(xs)
+    lo, hi = min(ys), max(ys)
+    if hi == lo:
+        hi = lo + 1
+    pad = (hi - lo) * 0.12
+    lo, hi = lo - pad, hi + pad
+    W, H, L, R, T, B = 640, 220, 44, 12, 12, 28
+
+    def sx(d):
+        return L + (d - x0) / max(x1 - x0, 1) * (W - L - R)
+
+    def sy(v):
+        return T + (hi - v) / (hi - lo) * (H - T - B)
+
+    def poly(points):
+        return " ".join(f"{sx(p[0].toordinal()):.1f},{sy(float(p[1])):.1f}" for p in points)
+
+    zero_y = sy(0)
+    parts = [f'<svg class="chart" viewBox="0 0 {W} {H}" role="img" '
+             f'aria-label="Running total of the model lead over always guessing up">']
+    parts.append(f'<line class="axis" x1="{L}" y1="{T}" x2="{L}" y2="{H - B}"/>')
+    parts.append(f'<line class="zero" x1="{L}" y1="{zero_y:.1f}" x2="{W - R}" y2="{zero_y:.1f}"/>')
+    parts.append(f'<text class="tick" x="{L - 6}" y="{zero_y + 4:.1f}" text-anchor="end">0</text>')
+    for v in (round(max(ys)), round(min(ys))):
+        if abs(sy(v) - zero_y) > 16:
+            parts.append(f'<text class="tick" x="{L - 6}" y="{sy(v) + 4:.1f}" text-anchor="end">{v:+d}</text>')
+    parts.append(f'<text class="tick" x="{L}" y="{H - 8}">{pts[0][0].date()}</text>')
+    parts.append(f'<text class="tick" x="{W - R}" y="{H - 8}" text-anchor="end">{pts[-1][0].date()}</text>')
+    if bt_points:
+        parts.append(f'<polyline class="bt" points="{poly(bt_points)}"/>')
+    if live_points:
+        start = [bt_points[-1]] if bt_points else []
+        parts.append(f'<polyline class="lv" points="{poly(start + live_points)}"/>')
+        lx = sx(live_points[0][0].toordinal())
+        parts.append(f'<line class="axis" x1="{lx:.1f}" y1="{T}" x2="{lx:.1f}" y2="{H - B}" stroke-dasharray="2 3"/>')
+        parts.append(f'<text class="tick" x="{lx - 4:.1f}" y="{T + 10}" text-anchor="end">live &rarr;</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+chart_html = ""
+chart_svg = advantage_chart(bt_pts, live_pts)
+if chart_svg:
+    chart_html = f"""<h2>Model vs always-up</h2>
+{chart_svg}
+<p class="note">Running total of the model's lead over always guessing up. Each graded day moves the line
+up one step when the model was right and always-up was wrong, down one step when it was the other way around,
+and not at all when they agreed. Above the dashed zero line, the model is ahead. Gray is the backtest, blue is live.</p>"""
+
+how_html = f"""<h2>How it works</h2>
+<p>Each night a logistic regression model is retrained from scratch on every finished day of Bitcoin history
+(daily candles from Coinbase, UTC days, back to October 2021). It sees six backward-looking facts about each day:
+returns over 1, 3, and 7 days, 7-day volatility, volume relative to its 7-day average, and the day of the week.
+It predicts whether the next day's close will be higher than today's. The backtest retrains on every day using
+only the days before it. <a href="{REPO_URL}">Code and full write-up on GitHub.</a></p>"""
+
 CSS = """
-:root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b; }
+:root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b; --accent:#2563eb; }
 @media (prefers-color-scheme: dark) {
-  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e; }
+  :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e; --accent:#6ea8ff; }
 }
 body { font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg);
        max-width:720px; margin:0 auto; padding:24px 16px; line-height:1.5; }
@@ -157,6 +240,12 @@ h1 { font-size:1.5rem; margin-bottom:4px; }
 table { width:100%; border-collapse:collapse; margin-top:8px; }
 th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--card); font-size:.95rem; }
 .note { color:var(--muted); font-size:.85rem; }
+.chart { width:100%; height:auto; display:block; margin-top:8px; }
+.axis { stroke:var(--muted); stroke-width:1; opacity:.5; }
+.zero { stroke:var(--muted); stroke-width:1; stroke-dasharray:4 3; }
+.bt { fill:none; stroke:var(--muted); stroke-width:1.5; }
+.lv { fill:none; stroke:var(--accent); stroke-width:2; }
+.tick { fill:var(--muted); font-size:11px; }
 """
 
 html = f"""<!doctype html>
@@ -172,11 +261,13 @@ html = f"""<!doctype html>
 <div class="cards">{card_pred}{card_result}</div>
 {record}
 {backtest}
+{chart_html}
 <h2>Recent predictions</h2>
 <table>
 <tr><th>Day</th><th>Predicted</th><th>Chance of up</th><th>Actual</th><th>Result</th></tr>
 {rows}
 </table>
+{how_html}
 <p class="note">"Up" means that day's UTC close was higher than the previous day's. Each prediction is logged
 before its day finishes and is never edited. Only finished days are used. Built for learning, not financial advice.</p>
 <p class="note">Updated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC.</p>
