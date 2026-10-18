@@ -99,7 +99,8 @@ if csv_path.exists():
     brier_txt = ""
     if "prob_up" in bt_df.columns:
         brier = ((bt_df["prob_up"] - bt_df["actual"]) ** 2).mean()
-        brier_txt = f" Brier score {brier:.3f} (lower is better; always saying 50% scores 0.250)."
+        brier_txt = (f" <b>Brier score: {brier:.3f}</b> (lower is better; always saying 50% scores 0.250; "
+                     f"<a href='https://en.wikipedia.org/wiki/Brier_score'>what's a Brier score?</a>).")
     backtest = (
         f"<p><b>Backtest</b> ({str(bt_df['date'].min())[:10]} to {str(bt_df['date'].max())[:10]}, "
         f"{len(bt_df):,} days, retraining every day): model {(bt_df['pred'] == bt_df['actual']).mean() * 100:.1f}%, "
@@ -240,9 +241,15 @@ returns over 1, 3, and 7 days, 7-day volatility, volume relative to its 7-day av
 It predicts whether the next day's close will be higher than today's. The backtest retrains on every day using
 only the days before it. <a href="{REPO_URL}">Code and full write-up on GitHub.</a></p>"""
 
+COIN_SVG = """<svg class="coin" viewBox="0 0 48 48" width="40" height="40" role="img" aria-label="A coin">
+<circle class="coin-face" cx="24" cy="24" r="22"/>
+<circle class="coin-ring" cx="24" cy="24" r="17"/>
+<text class="coin-b" x="24" y="31" text-anchor="middle">B</text>
+</svg>"""
+
 CSS = """
 :root { --bg:#ffffff; --fg:#1a1a1a; --muted:#666; --card:#f4f4f5; --up:#12805c; --down:#c0392b;
-        --bt:#2563eb; --live:#d97706; }
+        --bt:#2563eb; --live:#d97706; --coin:#fbbf24; --coin-edge:#b45309; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#111; --fg:#eee; --muted:#999; --card:#1e1e20; --up:#3ddc97; --down:#ff6b5e;
           --bt:#6ea8ff; --live:#fbbf24; }
@@ -269,6 +276,14 @@ th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--card); 
 .lvdot { fill:var(--live); stroke:var(--bg); stroke-width:1.5; }
 .tick { fill:var(--muted); font-size:11px; }
 .livelabel { fill:var(--live); font-size:11px; font-weight:600; }
+a { color:var(--bt); }
+.back { margin:0 0 12px; font-size:.9rem; }
+.titlerow { display:flex; align-items:center; gap:12px; margin-bottom:4px; }
+.titlerow h1 { margin:0; }
+.coin { flex:none; }
+.coin-face { fill:var(--coin); stroke:var(--coin-edge); stroke-width:2; }
+.coin-ring { fill:none; stroke:var(--coin-edge); stroke-width:1.5; opacity:.6; }
+.coin-b { fill:var(--coin-edge); font:700 22px system-ui, sans-serif; }
 """
 
 html = f"""<!doctype html>
@@ -278,7 +293,8 @@ html = f"""<!doctype html>
 <title>Bitcoin Flip</title>
 <style>{CSS}</style>
 </head><body>
-<h1>Bitcoin Flip</h1>
+<p class="back"><a href="https://shanekeith.com/" target="_top">&larr; shanekeith.com</a></p>
+<div class="titlerow">{COIN_SVG}<h1>Bitcoin Flip</h1></div>
 <p class="sub">Bitcoin Daily Direction Predictor</p>
 <p>Will tomorrow's close be higher or lower than today's? Data through the {as_of} close (UTC).</p>
 <div class="cards">{card_pred}{card_result}</div>
