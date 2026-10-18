@@ -11,7 +11,7 @@ from sklearn.preprocessing import StandardScaler
 
 DB_PATH = "data/crypto.duckdb"
 OUT_PATH = Path("docs/index.html")
-REPO_URL = "https://github.com/shaneckeith/btc-direction-predictor"
+README_URL = "https://github.com/shaneckeith/btc-direction-predictor/blob/main/README.md"
 
 # 1) Bring the price table up to date (fetches only missing finished days)
 subprocess.run([sys.executable, "update_btc.py"], check=True)
@@ -100,7 +100,7 @@ if csv_path.exists():
     if "prob_up" in bt_df.columns:
         brier = ((bt_df["prob_up"] - bt_df["actual"]) ** 2).mean()
         brier_txt = (f" <b>Brier score: {brier:.3f}</b> (lower is better; always saying 50% scores 0.250; "
-                     f"<a href='https://en.wikipedia.org/wiki/Brier_score'>what's a Brier score?</a>).")
+                     f"<a href='https://en.wikipedia.org/wiki/Brier_score' target='_blank' rel='noopener'>what's a Brier score?</a>).")
     backtest = (
         f"<p><b>Backtest</b> ({str(bt_df['date'].min())[:10]} to {str(bt_df['date'].max())[:10]}, "
         f"{len(bt_df):,} days, retraining every day): model {(bt_df['pred'] == bt_df['actual']).mean() * 100:.1f}%, "
@@ -239,7 +239,7 @@ how_html = f"""<h2>How it works</h2>
 (daily candles from Coinbase, UTC days, back to October 2021). It sees six backward-looking facts about each day:
 returns over 1, 3, and 7 days, 7-day volatility, volume relative to its 7-day average, and the day of the week.
 It predicts whether the next day's close will be higher than today's. The backtest retrains on every day using
-only the days before it. <a href="{REPO_URL}">Code and full write-up on GitHub.</a></p>"""
+only the days before it. <a href="{README_URL}" target="_blank" rel="noopener">Code and full write-up on GitHub.</a></p>"""
 
 COIN_SVG = """<svg class="coin" viewBox="0 0 48 48" width="40" height="40" role="img" aria-label="A coin">
 <circle class="coin-face" cx="24" cy="24" r="22"/>
