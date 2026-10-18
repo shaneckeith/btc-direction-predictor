@@ -163,11 +163,12 @@ html = f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bitcoin Daily Direction Predictor</title>
+<title>Bitcoin Flip</title>
 <style>{CSS}</style>
 </head><body>
-<h1>Bitcoin Daily Direction Predictor</h1>
-<p class="sub">Will tomorrow's close be higher or lower than today's? Data through the {as_of} close (UTC).</p>
+<h1>Bitcoin Flip</h1>
+<p class="sub">Bitcoin Daily Direction Predictor</p>
+<p>Will tomorrow's close be higher or lower than today's? Data through the {as_of} close (UTC).</p>
 <div class="cards">{card_pred}{card_result}</div>
 {record}
 {backtest}
